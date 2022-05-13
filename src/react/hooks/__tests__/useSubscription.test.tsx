@@ -504,4 +504,45 @@ describe('useSubscription Hook', () => {
     );
     errorSpy.mockRestore();
   });
+
+  it('should handle a subscription properly in StrictMode', async () => {
+    const subscription = gql`
+      subscription {
+        car {
+          make
+        }
+      }
+    `;
+
+    const results = ['Audi', 'BMW'].map((make) => ({
+      result: { data: { car: { make } } },
+    }));
+
+    const link = new MockSubscriptionLink();
+    const client = new ApolloClient({
+      link,
+      cache: new Cache({ addTypename: false }),
+    });
+
+    const { result, waitForNextUpdate } = renderHook(() => useSubscription(subscription), {
+      wrapper: ({ children }) => (
+        <React.StrictMode>
+          <ApolloProvider client={client}>{children}</ApolloProvider>
+        </React.StrictMode>
+      ),
+    });
+
+    expect(result.current.loading).toBe(true);
+    expect(result.current.error).toBe(undefined);
+    expect(result.current.data).toBe(undefined);
+    setTimeout(() => link.simulateResult(results[0]));
+    await waitForNextUpdate();
+    expect(result.current.loading).toBe(false);
+    expect(result.current.data).toEqual(results[0].result.data);
+    setTimeout(() => link.simulateResult(results[1]));
+    await waitForNextUpdate();
+    expect(result.current.loading).toBe(false);
+    expect(result.current.data).toEqual(results[1].result.data);
+    setTimeout(() => link.simulateResult(results[2]));
+  });
 });
